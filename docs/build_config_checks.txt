@@ -1,0 +1,68 @@
+Ubuntu build configuration checks on Windows
+No Linux compiler/linker execution or Ubuntu runtime tests were performed.
+Script dispatch checks used explicit uname/make command doubles.
+
+PASS shell script LF/no BOM
+PASS shell syntax
+PASS unsupported host OS rejected
+PASS GNU make dry-run syntax and complete targets
+PASS make recipe contains ncr_platform_linux.c
+PASS make recipe contains test_ncr_linux
+PASS make recipe contains -pthread
+PASS make recipe contains -D_POSIX_C_SOURCE=200809L
+PASS make recipe contains -D_TIME_BITS=64
+PASS make recipe contains -D_FILE_OFFSET_BITS=64
+PASS make recipe contains -MMD -MP
+PASS make recipe contains example_gps_callback.c
+PASS no Windows source/object in build recipes
+PASS seven explicit Linux runtime sources
+PASS obsolete Windows entry points removed
+PASS compiler target probe rejects non-Linux compiler
+PASS stubbed dispatch default
+PASS stubbed project path with spaces default
+PASS stubbed dispatch build
+PASS stubbed project path with spaces build
+PASS stubbed dispatch test
+PASS stubbed project path with spaces test
+PASS stubbed dispatch example
+PASS stubbed project path with spaces example
+PASS stubbed dispatch asan
+PASS stubbed project path with spaces asan
+PASS stubbed dispatch ubsan
+PASS stubbed project path with spaces ubsan
+PASS stubbed dispatch tsan
+PASS stubbed project path with spaces tsan
+PASS stubbed dispatch clean
+PASS stubbed project path with spaces clean
+PASS stubbed dispatch help
+PASS stubbed project path with spaces help
+PASS unknown mode rejected
+PASS extra arguments rejected
+PASS algorithm/API retained: include/ncr_sync.h
+PASS algorithm/API retained: include/ncr_gps_time.h
+PASS algorithm/API retained: src/ncr_internal.h
+PASS algorithm/API retained: src/ncr_config.c
+PASS algorithm/API retained: src/ncr_gps_adapter.c
+PASS algorithm/API retained: src/ncr_restore.c
+PASS algorithm/API retained: src/ncr_time_state.c
+PASS algorithm/API retained: src/ncr_sync_service.c
+PASS algorithm/API retained: src/ncr_status.c
+PASS C format/equality/prohibited calls: examples/example_gps_callback.c
+PASS C format/equality/prohibited calls: src/ncr_config.c
+PASS C format/equality/prohibited calls: src/ncr_gps_adapter.c
+PASS C format/equality/prohibited calls: src/ncr_platform_linux.c
+PASS C format/equality/prohibited calls: src/ncr_restore.c
+PASS C format/equality/prohibited calls: src/ncr_status.c
+PASS C format/equality/prohibited calls: src/ncr_sync_service.c
+PASS C format/equality/prohibited calls: src/ncr_time_state.c
+PASS C format/equality/prohibited calls: tests/ncr_platform_fake.c
+PASS C format/equality/prohibited calls: tests/test_host_gps.c
+PASS C format/equality/prohibited calls: tests/test_ncr_concurrency.c
+PASS C format/equality/prohibited calls: tests/test_ncr_linux.c
+PASS C format/equality/prohibited calls: tests/test_ncr_state.c
+PASS C format/equality/prohibited calls: tests/test_ncr_sync.c
+PASS C format/equality/prohibited calls: include/ncr_gps_time.h
+PASS C format/equality/prohibited calls: include/ncr_sync.h
+PASS C format/equality/prohibited calls: src/ncr_internal.h
+PASS C format/equality/prohibited calls: tests/host_gps_adapter.h
+PASS C format/equality/prohibited calls: tests/ncr_test_support.h
