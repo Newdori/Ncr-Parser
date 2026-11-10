@@ -1,5 +1,5 @@
 {
-  "client_date": "2026-11-07",
+  "client_date": "2026-11-10",
   "format": 2,
   "target": "Ubuntu Linux, C11, pthread, 64-bit time_t",
   "scope": "Source/docs/configuration checks; no built binaries; manifest itself excluded",
@@ -14,15 +14,19 @@
     },
     {
       "path": "AGENTS.md",
-      "sha256": "c280dc566c55044577eb61aa20e7a7cbeba27316154fbd8a6c4630356e679dec"
+      "sha256": "4da240ea113eea4fa0a57d97481e76ee16f65e3bb14aa12b34fa9645840c17fd"
+    },
+    {
+      "path": "Makefile",
+      "sha256": "96fa6ef901cc0ae3e06121d0c7b30e0163064d6a45b056b7cb0ac0cfbf6330ff"
+    },
+    {
+      "path": "README.md",
+      "sha256": "a843b1a58cad19e786b4b096bab1a8e4ca4d807fe1dd6653e4775e44f4fb8cda"
     },
     {
       "path": "build_ubuntu.sh",
       "sha256": "c466c38ab3eb55e875acf41842927135d6859d38ceb29607f116598645734904"
-    },
-    {
-      "path": "docs/build_config_checks.txt",
-      "sha256": "a4d304d8ebe3f86e46a31ff92c36dcd970e199607fe1d8c24cdc34e713bdac84"
     },
     {
       "path": "docs/CODING_RULES.md",
@@ -34,63 +38,27 @@
     },
     {
       "path": "docs/FILE_GUIDE.md",
-      "sha256": "509d62b559a281db9245f865413e5070ed600ca79cac81e5c57eff7d4bde912b"
+      "sha256": "c4535e403cd7815c5709237f27edc0ad29d0f5c3368edfcccd6e5bef284c872d"
     },
     {
       "path": "docs/VALIDATION.md",
-      "sha256": "6bad8220960a0d907e935114b252e6e2b768efa2ddb15e3eb3243080a90c617e"
+      "sha256": "9cb23b79d3d8d78f96b14b61852b16153071f90aaa24084dd26b9d08ae64ddf6"
+    },
+    {
+      "path": "docs/build_config_checks.txt",
+      "sha256": "a4d304d8ebe3f86e46a31ff92c36dcd970e199607fe1d8c24cdc34e713bdac84"
     },
     {
       "path": "examples/example_gps_callback.c",
       "sha256": "f9427105f2a14c25391d73032400c5401e4629f0f561fa60082ad228410db9c4"
     },
     {
-      "path": "include/ncr_gps_time.h",
-      "sha256": "b2b8fe2499bebbaaa3db1489a42b38b1bf4004b5128c68c49b2e5448a218a36b"
+      "path": "src/ncr_sync.c",
+      "sha256": "43f4a394350c0ad015df757c65c9a8b263ddc14abf6aa1549e28c942e8d86015"
     },
     {
-      "path": "include/ncr_sync.h",
-      "sha256": "abd8965cd7b4af244f76914208f38034614ff978985fc58fe52f730032020276"
-    },
-    {
-      "path": "Makefile",
-      "sha256": "3b3c38988a57eb41468b6fe15b34bb9b6f9f44183a07239a4d08cca8d097c1b9"
-    },
-    {
-      "path": "README.md",
-      "sha256": "23ffd9812967ff5d25e57999c57f42c193a8243c23b116a9ee1e741164bc1098"
-    },
-    {
-      "path": "src/ncr_config.c",
-      "sha256": "f4770ac2fc1b4f522769b56ff46159ff7e2d80ca088f514bc67e1a7eeb31e030"
-    },
-    {
-      "path": "src/ncr_gps_adapter.c",
-      "sha256": "fdfb74deb802b3268ddbbabfe2daad78a1f4e256c35e03445193f3853089ee1c"
-    },
-    {
-      "path": "src/ncr_internal.h",
-      "sha256": "766a9bfada793e0ef1ed1ce9dae8a586586354289b3d3cdfc3b0cef5a81f09f7"
-    },
-    {
-      "path": "src/ncr_platform_linux.c",
-      "sha256": "318a06ffba49dfb0c3ceca9899ad2c98d6f6a6cd781d6ec31b34cbcf0bdb5fa6"
-    },
-    {
-      "path": "src/ncr_restore.c",
-      "sha256": "40a7a62c430807685a00ebe3ea347f8adf20644eef39dd32b43699a79eae67d0"
-    },
-    {
-      "path": "src/ncr_status.c",
-      "sha256": "638c8bc42d9b86fd1a003dc4dd1dd11f8d42558a232c2a75807cc1c703a6f696"
-    },
-    {
-      "path": "src/ncr_sync_service.c",
-      "sha256": "487cc960623fe779dd37bfffe6cb019cdeb622d09cb25f97e6b10b6bbc721483"
-    },
-    {
-      "path": "src/ncr_time_state.c",
-      "sha256": "8d95beb39925f2ddc7463fb48d1280079fde0d27454f7a1bafd3517f864dcc17"
+      "path": "src/ncr_sync.h",
+      "sha256": "3424822050ab9bf3a5075a59eb0ccf1e5d0694e70d8b05bdaac03eb49e37ca32"
     },
     {
       "path": "tests/host_gps_adapter.h",
@@ -118,15 +86,15 @@
     },
     {
       "path": "tests/test_ncr_linux.c",
-      "sha256": "63258d274cfcd9b068064de195e7f1ce5965e2b3e1c432af99524d468d3e42f7"
+      "sha256": "4846875f24ce79c00615e49cd8a3011a3a19e7694200ce26eb6d5ba2fd91a4b7"
     },
     {
       "path": "tests/test_ncr_state.c",
-      "sha256": "a8bf7ffaea1d62e4bf96f0e0266b9c2dc5ee79c80906d586597dfc09173018e3"
+      "sha256": "e4e86ed6244a543cccea11863f2d1351203b7b9ba7d1caebb0831cf9c962d7ae"
     },
     {
       "path": "tests/test_ncr_sync.c",
-      "sha256": "baf96f44f9d229a8225509b5c11989e24e6c7991514e3c8ab581b236bd5dd6d9"
+      "sha256": "8eec901b97c220c7c5236a131c9cecb40a9547f42c7b9971c830a6bddaa0ffdc"
     }
   ]
 }

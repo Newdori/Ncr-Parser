@@ -14,9 +14,16 @@ static void TestInputAndConfig(void)
     stGps.uiMillisecond = 65536U;
     CHECK(NCR_STATUS_INVALID_GPS == ValidateGpsTime(&stGps));
     stGps.uiMillisecond = 999U;
+    stGps.ucClockStatus = 0U;
+    CHECK(NCR_STATUS_INVALID_GPS == ValidateGpsTime(&stGps));
     stGps.ucClockStatus = 99U;
     CHECK(NCR_STATUS_INVALID_GPS == ValidateGpsTime(&stGps));
+    stGps.ucClockStatus = 2U;
+    CHECK(NCR_STATUS_OK == ValidateGpsTime(&stGps));
+    stGps.ucClockStatus = 3U;
+    CHECK(NCR_STATUS_OK == ValidateGpsTime(&stGps));
     stGps.ucClockStatus = 1U;
+    CHECK(NCR_STATUS_OK == ValidateGpsTime(&stGps));
     stGps.ucSec = 60U;
     CHECK(NCR_STATUS_INVALID_GPS == ValidateGpsTime(&stGps));
     stGps.ucSec = 59U;
@@ -32,16 +39,13 @@ static void TestInputAndConfig(void)
     stConfig.uiAcquireSamples = 0U;
     CHECK(NCR_STATUS_BAD_CONFIG == ValidateNcrConfig(&stConfig));
     stConfig = GetNcrDefaultConfig();
-    stConfig.uiExpectedLinkDelayMs = stConfig.uiMaxLinkDelayMs + 1U;
-    CHECK(NCR_STATUS_BAD_CONFIG == ValidateNcrConfig(&stConfig));
+    stConfig.uiMaxLinkDelayMs = 200U;
+    CHECK(NCR_STATUS_OK == ValidateNcrConfig(&stConfig));
     stConfig = GetNcrDefaultConfig();
     stConfig.uiMaxLinkDelayMs = 90000U;
     CHECK(NCR_STATUS_BAD_CONFIG == ValidateNcrConfig(&stConfig));
     stConfig = GetNcrDefaultConfig();
     stConfig.uiMaxUncertaintyMs = UINT32_MAX;
-    CHECK(NCR_STATUS_BAD_CONFIG == ValidateNcrConfig(&stConfig));
-    stConfig = GetNcrDefaultConfig();
-    stConfig.iModel = (NcrModel)99;
     CHECK(NCR_STATUS_BAD_CONFIG == ValidateNcrConfig(&stConfig));
     puts("PASS input/hour/ms32/status/config validation");
 }

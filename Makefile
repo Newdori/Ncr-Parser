@@ -13,15 +13,13 @@ CFLAGS ?= -O2 -g
 CXXFLAGS ?= -O2 -g
 SANITIZER_FLAGS ?=
 
-NCR_CPPFLAGS := -D_POSIX_C_SOURCE=200809L -D_FILE_OFFSET_BITS=64 -D_TIME_BITS=64 -Iinclude -Isrc -Itests
+NCR_CPPFLAGS := -D_POSIX_C_SOURCE=200809L -D_FILE_OFFSET_BITS=64 -D_TIME_BITS=64 -Isrc -Itests
 NCR_CFLAGS := -std=c11 -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror -pthread
 NCR_CXXFLAGS := -std=c++11 -Wall -Wextra -Wpedantic -Werror -pthread
 NCR_LDLIBS := -pthread
 
 # Explicit Linux sources: a foreign platform must never enter this archive.
-SOURCES := src/ncr_config.c src/ncr_gps_adapter.c src/ncr_time_state.c \
-           src/ncr_restore.c src/ncr_sync_service.c src/ncr_status.c \
-           src/ncr_platform_linux.c
+SOURCES := src/ncr_sync.c
 OBJECTS := $(patsubst src/%.c,$(BUILD)/%.o,$(SOURCES))
 C_TESTS := test_ncr_sync test_ncr_state test_ncr_concurrency test_ncr_linux
 TEST_BINS := $(addprefix $(BUILD)/,$(C_TESTS)) $(BUILD)/test_cpp $(BUILD)/test_host_gps
@@ -40,17 +38,19 @@ $(OBJECTS): | check-platform
 $(BUILD)/%.o: src/%.c | $(BUILD)
 	$(CC) $(CPPFLAGS) $(NCR_CPPFLAGS) $(CFLAGS) $(NCR_CFLAGS) $(SANITIZER_FLAGS) -MMD -MP -c $< -o $@
 
-$(BUILD)/libncrsync.a: $(OBJECTS)
-	$(AR) rcs $@ $^
+$(BUILD)/libncrsync.a: $(OBJECTS) Makefile
+	$(RM) -- $@.tmp
+	$(AR) rcs $@.tmp $(OBJECTS)
+	mv -f -- $@.tmp $@
 
-$(BUILD)/test_%: tests/test_%.c $(TEST_SUPPORT) include/ncr_sync.h include/ncr_gps_time.h $(BUILD)/libncrsync.a
+$(BUILD)/test_%: tests/test_%.c $(TEST_SUPPORT) src/ncr_sync.h $(BUILD)/libncrsync.a
 	$(CC) $(CPPFLAGS) $(NCR_CPPFLAGS) $(CFLAGS) $(NCR_CFLAGS) $(SANITIZER_FLAGS) $< tests/ncr_platform_fake.c $(BUILD)/libncrsync.a $(LDFLAGS) $(NCR_LDLIBS) $(LDLIBS) -o $@
 
-$(BUILD)/test_cpp: tests/test_cpp.cpp include/ncr_sync.h include/ncr_gps_time.h $(BUILD)/libncrsync.a
+$(BUILD)/test_cpp: tests/test_cpp.cpp src/ncr_sync.h $(BUILD)/libncrsync.a
 	$(CXX) $(CPPFLAGS) $(NCR_CPPFLAGS) $(CXXFLAGS) $(NCR_CXXFLAGS) $(SANITIZER_FLAGS) $< $(BUILD)/libncrsync.a $(LDFLAGS) $(NCR_LDLIBS) $(LDLIBS) -o $@
 
-$(BUILD)/test_host_gps: tests/test_host_gps.c tests/host_gps_adapter.h src/ncr_gps_adapter.c include/ncr_sync.h include/ncr_gps_time.h src/ncr_internal.h | $(BUILD) check-platform
-	$(CC) $(CPPFLAGS) $(NCR_CPPFLAGS) $(CFLAGS) $(NCR_CFLAGS) $(SANITIZER_FLAGS) -DNCR_GPS_TIME_HEADER='"host_gps_adapter.h"' tests/test_host_gps.c src/ncr_gps_adapter.c $(LDFLAGS) $(NCR_LDLIBS) $(LDLIBS) -o $@
+$(BUILD)/test_host_gps: tests/test_host_gps.c tests/host_gps_adapter.h src/ncr_sync.c src/ncr_sync.h | $(BUILD) check-platform
+	$(CC) $(CPPFLAGS) $(NCR_CPPFLAGS) $(CFLAGS) $(NCR_CFLAGS) $(SANITIZER_FLAGS) -DNCR_GPS_TIME_HEADER='"host_gps_adapter.h"' tests/test_host_gps.c src/ncr_sync.c $(LDFLAGS) $(NCR_LDLIBS) $(LDLIBS) -o $@
 
 test: $(TEST_BINS)
 	$(BUILD)/test_ncr_sync
@@ -60,7 +60,7 @@ test: $(TEST_BINS)
 	$(BUILD)/test_cpp
 	$(BUILD)/test_host_gps
 
-$(BUILD)/example_gps_callback.o: examples/example_gps_callback.c include/ncr_sync.h include/ncr_gps_time.h | $(BUILD) check-platform
+$(BUILD)/example_gps_callback.o: examples/example_gps_callback.c src/ncr_sync.h | $(BUILD) check-platform
 	$(CC) $(CPPFLAGS) $(NCR_CPPFLAGS) $(CFLAGS) $(NCR_CFLAGS) $(SANITIZER_FLAGS) -c $< -o $@
 
 example: $(BUILD)/libncrsync.a $(BUILD)/example_gps_callback.o
@@ -76,7 +76,7 @@ tsan:
 	build-tsan/test_ncr_concurrency
 
 clean:
-	rm -f -- $(OBJECTS) $(OBJECTS:.o=.d) $(BUILD)/libncrsync.a $(TEST_BINS) $(BUILD)/example_gps_callback.o
+	rm -f -- $(OBJECTS) $(OBJECTS:.o=.d) $(BUILD)/libncrsync.a $(BUILD)/libncrsync.a.tmp $(TEST_BINS) $(BUILD)/example_gps_callback.o
 
 help:
 	@printf '%s\n' 'make: build/libncrsync.a' 'make test example: full tests and integration example' 'make asan / ubsan / tsan: separate sanitizer builds' 'make clean: remove files in BUILD (default build)' 'make CC=clang CXX=clang++ BUILD=build-clang test example'

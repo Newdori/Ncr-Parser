@@ -3,7 +3,21 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "ncr_gps_time.h"
+
+#ifdef NCR_GPS_TIME_HEADER
+#include NCR_GPS_TIME_HEADER
+#else
+typedef struct GpsTime {
+    uint16_t usYear;
+    uint8_t ucMonth;
+    uint8_t ucDay;
+    uint8_t ucHour;
+    uint8_t ucMin;
+    uint8_t ucSec;
+    uint32_t uiMillisecond;
+    uint8_t ucClockStatus;
+} GpsTime_t;
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -13,6 +27,7 @@ extern "C" {
 #define NCR_LSB24_MASK UINT32_C(0x00FFFFFF)
 #define NCR_TICKS_PER_SECOND UINT64_C(90000)
 #define NCR_RECEIVE_CONTEXT_VERSION 1U
+#define NCR_GPS_EVENT_NOT_RECORDED_MS (-INT64_C(1))
 
 typedef enum NcrStatus {
     NCR_STATUS_OK = 0,
@@ -28,14 +43,14 @@ typedef enum NcrStatus {
     NCR_STATUS_PERMISSION_DENIED,
     NCR_STATUS_UNSUPPORTED,
     NCR_STATUS_NO_MEMORY,
-    NCR_STATUS_LOCK_ERROR,
-    NCR_STATUS_COUNT
+    NCR_STATUS_LOCK_ERROR
 } NcrStatus;
 
 typedef enum NcrClockStatus {
-    NCR_CLOCK_UNSYNCED = 0,
-    NCR_CLOCK_LOCKED = 1,
-    NCR_CLOCK_HOLDOVER = 2
+    NCR_CLOCK_GPS_SYNC = 1,
+    NCR_CLOCK_LOCKED = NCR_CLOCK_GPS_SYNC, /* Existing source-level name. */
+    NCR_CLOCK_HOLDOVER = 2,
+    NCR_CLOCK_UNSYNCED = 3
 } NcrClockStatus;
 
 typedef enum NcrState {
@@ -68,16 +83,10 @@ typedef enum NcrRestoreStatus {
     NCR_RESTORE_AMBIGUOUS,
     NCR_RESTORE_QUEUE_EXPIRED,
     NCR_RESTORE_CONTEXT_INVALIDATED,
-    NCR_RESTORE_CLOCK_ERROR,
-    NCR_RESTORE_STATUS_COUNT
+    NCR_RESTORE_CLOCK_ERROR
 } NcrRestoreStatus;
 
-typedef enum NcrModel {
-    NCR_MODEL_DAILY_SECONDS_90KHZ = 0
-} NcrModel;
-
 typedef struct NcrConfig {
-    NcrModel iModel;
     bool bAllowClockStep;
     int32_t iSourceMinusUtcSec;
     uint32_t uiTimeMessageDelayMs;
@@ -85,8 +94,7 @@ typedef struct NcrConfig {
     uint32_t uiConfirmSteps;
     uint32_t uiStepThresholdMs;
     uint32_t uiMaxSampleJitterMs;
-    uint32_t uiMessageGapToHoldoverMs;
-    uint32_t uiMaxMessageAgeMs;
+    uint32_t uiGpsMessageTimeoutMs;
     uint32_t uiMaxSourceHoldoverMs;
     uint32_t uiMaxLocalHoldoverMs;
     uint32_t uiMaxClockOffsetMs;
@@ -95,7 +103,6 @@ typedef struct NcrConfig {
     uint32_t uiReceiveUncertaintyMs;
     uint32_t uiDelayUncertaintyMs;
     uint32_t uiLocalDriftPpm;
-    uint32_t uiExpectedLinkDelayMs;
     uint32_t uiMaxLinkDelayMs;
     uint32_t uiMaxQueueAgeMs;
     uint32_t uiMaxClockJumpMs;
@@ -121,6 +128,7 @@ typedef struct NcrTimeQuality {
     NcrClockStatus iSourceStatus;
     NcrRestoreStatus iUsability;
     bool bHoldover;
+    bool bUbuntuFallback;
     bool bHasLockedReference;
     uint64_t ullMessageAgeMs;
     uint64_t ullLockedAgeMs;
@@ -128,7 +136,6 @@ typedef struct NcrTimeQuality {
     uint64_t ullUncertaintyMs;
     int64_t llObservedOffsetMs;
     int64_t llTrustedOffsetMs;
-    uint64_t ullClockGeneration;
     uint64_t ullPolicyGeneration;
 } NcrTimeQuality_t;
 
@@ -166,19 +173,17 @@ typedef struct NcrRestoreResult {
     NcrTimeQuality_t stQuality;
 } NcrRestoreResult_t;
 
+typedef struct NcrGpsEvents {
+    int64_t llLastGpsSyncLostUtcMs;
+    int64_t llLastGpsMessageMissingUtcMs;
+    int64_t llLastGpsMessageRestoredUtcMs;
+    bool bGpsMessageMissing;
+} NcrGpsEvents_t;
+
 typedef struct NcrSyncStatus {
     NcrTimeQuality_t stQuality;
-    uint64_t ullAcceptedSamples;
-    uint64_t ullRejectedSamples;
-    uint64_t ullReacquireEvents;
-    uint64_t ullClockJumps;
-    uint64_t ullAppliedSteps;
-    uint64_t ullStepFailures;
-    uint64_t ullRestoreSuccesses;
-    uint64_t ullRestoreFailures;
-    uint64_t aullUpdateByStatus[NCR_STATUS_COUNT];
-    uint64_t aullRestoreByStatus[NCR_RESTORE_STATUS_COUNT];
     NcrStatus iLastUpdateStatus;
+    NcrGpsEvents_t stGpsEvents;
 } NcrSyncStatus_t;
 
 /* Defaults are development examples; configure measured uncertainty for hardware. */

@@ -26,14 +26,14 @@ sh ./build_ubuntu.sh test
 make clean
 ```
 
-실제 호스트 프로그램에는 공개 헤더와 라이브러리를 추가한다.
+호스트 프로젝트에는 `src/ncr_sync.c`와 `src/ncr_sync.h`를 함께 복사한다. 기존 C 프로그램과 직접 컴파일할 수 있다.
 
 ```sh
 gcc -std=c11 -D_POSIX_C_SOURCE=200809L -D_FILE_OFFSET_BITS=64 -D_TIME_BITS=64 \
-    -Iinclude your_app.c build/libncrsync.a -pthread -o your_app
+    -Isrc your_app.c src/ncr_sync.c -pthread -o your_app
 ```
 
-단독 실행형 서버를 생성하는 프로젝트가 아니다. `libncrsync.a`를 기존 프로그램에 링크하고 기존 GPS/RLE 수신부에서 API를 호출한다. 기본 `make`는 운영용 라이브러리만 만들며, G++는 `make test`의 C++ 연결 시험에서 사용한다. OpenSSL이나 AES 라이브러리는 이 모듈 빌드의 의존성이 아니다.
+정적 라이브러리 방식으로 연결할 때는 위 컴파일 명령의 `src/ncr_sync.c` 자리에 `build/libncrsync.a`를 넣는다. 기본 `make`는 운영용 라이브러리를 만들며, `make test`의 C++ 연결 시험은 G++를 사용한다.
 
 Clang과 sanitizer 시험은 필요한 도구를 Ubuntu에 설치한 뒤 실행한다.
 
@@ -54,16 +54,8 @@ make tsan     # 동시성 시험, build-tsan
 **파일 구조와 먼저 볼 파일**
 
 ```text
-include/ncr_gps_time.h       GpsTime_t 입력 정의/호스트 타입 연결
-include/ncr_sync.h           공개 API, 설정, 상태, 수신 문맥, 복원 결과
-src/ncr_config.c            기본 설정과 설정 검증
-src/ncr_gps_adapter.c       GPS 필드 검증과 달력/epoch 변환
-src/ncr_time_state.c        동기 획득, HOLDOVER, 재획득, 시간 품질
-src/ncr_restore.c           NCR24→NCR32와 송신 날짜 복원
-src/ncr_sync_service.c      외부 API 구현, mutex, Step 절차, 문맥/통계
-src/ncr_platform_linux.c    Linux 클록 읽기와 선택적 clock_settime
-src/ncr_status.c            상태/오류 코드 문자열
-src/ncr_internal.h          내부 인스턴스와 모듈 간 선언
+src/ncr_sync.h             GPS 입력, 공개 API, 설정, 이벤트 시각, 복원 결과
+src/ncr_sync.c             입력 검증, 시각 처리, 이벤트 기록, NCR 복원
 examples/example_gps_callback.c  기존 GPS/RLE 수신부 연결 예제
 tests/                     단위·경계·상태·동시성·Linux 클록 시험
 Makefile                   Ubuntu/GCC/Clang 빌드
@@ -72,7 +64,7 @@ docs/FILE_GUIDE.md          모든 파일의 역할과 호출 관계
 docs/VALIDATION.md          수행·미수행 검증 구분
 ```
 
-먼저 `include/ncr_sync.h`에서 공개 계약을 확인하고, `examples/example_gps_callback.c`를 기존 수신부에 연결하는 기준으로 보면 된다. 파일별 상세 입출력과 주요 함수는 `docs/FILE_GUIDE.md`에 정리했다.
+먼저 `src/ncr_sync.h`에서 공개 계약을 확인하고, `examples/example_gps_callback.c`의 호출을 기존 수신부에 연결한다. 주요 함수의 역할은 `docs/FILE_GUIDE.md`에서 확인할 수 있다.
 
 **GPS 입력 계약**
 
@@ -91,7 +83,7 @@ typedef struct GpsTime {
 
 - 연도 2000~2099, 유효한 월/일, 시 0~23, 분/초 0~59를 수용한다. 윤초 60초 표기는 지원하지 않는다.
 - `uiMillisecond`는 초 안의 0~999 ms다. 원래 32비트 값에서 검사한다.
-- `ucClockStatus`는 0=UNSYNCED, 1=LOCKED, 2=HOLDOVER다. 실제 장비 값이 다르면 호스트에서 매핑한다.
+- `ucClockStatus`는 `GPS_SYNC=1`, `HOLDOVER=2`, `UNSYNCED=3`이다. `UpdateGpsTime()`은 `UNSYNCED`의 상태를 먼저 반영하며 이 메시지의 날짜와 시각 필드는 사용하지 않는다.
 - 구조체는 호스트에서 파싱한 데이터다. 패딩과 바이트 순서가 있으므로 네트워크 버퍼를 그대로 캐스팅하지 않는다.
 - 입력 버퍼는 API 호출 중 안정적이어야 한다. 다른 스레드가 수정할 수 있으면 호스트에서 잠금 아래 복사한 뒤 넘긴다. 라이브러리는 입력 포인터를 보관하지 않는다.
 
@@ -112,9 +104,15 @@ typedef struct GpsTime {
 
 **동기 상태와 설정**
 
-모듈 상태는 UNINITIALIZED, ACQUIRING, READY, HOLDOVER, REACQUIRING, STALE다. 초기 HOLDOVER만으로 기준을 만들지 않으며 기본 3개의 연속 LOCKED 샘플로 획득한다. UNSYNCED는 즉시 원천 상태에 반영하고 Step 확인을 끊는다. 이전 LOCKED 기준이 남아 있다면 정해진 시간/오차 한계 안에서 로컬 HOLDOVER를 허용한다.
+| GPS 상태 | 복원에 적용하는 기준 |
+|---|---|
+| `GPS_SYNC` (1) | 유효 샘플을 연속 확인해 GPS 기준을 획득한다. 기본 3회이며 시각 Step 옵션을 활성화하면 이 상태에서 보정을 허용한다. |
+| `HOLDOVER` (2) | 마지막 검증 기준을 정해진 시간과 오차 범위에서 사용한다. 기준이 없거나 허용 시간이 지나면 Ubuntu 시각 기준으로 전환한다. |
+| `UNSYNCED` (3) 또는 미수신 | GPS 기준 보정을 중단하고 Ubuntu의 `CLOCK_REALTIME`으로 NCR 복원을 계속한다. GPS_SYNC가 돌아오면 연속 샘플 검증으로 기준을 다시 획득한다. |
 
-메시지 미수신 시간, 원천 HOLDOVER 지속시간, 마지막 검증 LOCKED 이후 시간을 별도로 계산한다. HOLDOVER 메시지가 계속 도착해도 마지막 LOCKED가 갱신되지 않는다. 불연속 시각은 새 연속 샘플을 확인해 재획득한다.
+`stQuality.bUbuntuFallback`이 참이면 Ubuntu 시각과 `uiMaxUncertaintyMs`를 후보 검색에 사용한다. 이 때 Ubuntu 시간 동기화가 실제 시스템 오차를 해당 한계 안에 유지해야 한다. 날짜를 포함한 절대 시각은 `CLOCK_REALTIME`에서 얻고, 미수신과 HOLDOVER 경과시간은 `CLOCK_MONOTONIC`으로 계산한다.
+
+`GetNcrSyncStatus()`의 `stGpsEvents`에는 최근 GPS_SYNC 해제 시각, 미수신 감지 시각, 수신 재개 시각을 Ubuntu UTC 밀리초로 보관한다. 각 시각의 초기값은 `NCR_GPS_EVENT_NOT_RECORDED_MS`이다. GPS_SYNC 해제는 상태 1에서 2 또는 3으로 바뀐 수신 시점이다. 미수신은 최초 시각 조회 이후부터 감시하며, 기한을 넘긴 뒤 API가 시각을 확인한 시점에 기록한다. 다음 유효 메시지가 도착하면 수신 재개 시각을 기록한다. 통신 재개와 GPS 동기 획득은 별도로 판정한다.
 
 | 주요 설정 | 기본값 | 의미 |
 |---|---:|---|
@@ -123,14 +121,13 @@ typedef struct GpsTime {
 | `uiTimeMessageDelayMs` | 0 | 원천 측정→수신 대표 지연 |
 | `uiAcquireSamples` / `uiConfirmSteps` | 3 / 3 | 획득 / Step 확인 횟수 |
 | `uiStepThresholdMs` / `uiMaxSampleJitterMs` | 500 / 250ms | 보정 후보 오차 / 연속성 허용 오차 |
-| `uiMessageGapToHoldoverMs` | 3000ms | 미수신 HOLDOVER 전환 |
-| `uiMaxMessageAgeMs` | 300000ms | 마지막 수용 메시지 나이 한계 |
-| `uiMaxSourceHoldoverMs` | 300000ms | 원천 HOLDOVER/UNSYNCED 지속 한계 |
-| `uiMaxLocalHoldoverMs` | 300000ms | 마지막 검증 LOCKED 기준 나이 한계 |
+| `uiGpsMessageTimeoutMs` | 3000ms | 마지막 유효 메시지 이후 미수신 판단 기한 |
+| `uiMaxSourceHoldoverMs` | 300000ms | 원천 HOLDOVER 지속 한계 |
+| `uiMaxLocalHoldoverMs` | 300000ms | 마지막 검증 GPS_SYNC 기준 나이 한계 |
 | `uiMaxClockOffsetMs` / `uiMaxUncertaintyMs` | 2000 / 2000ms | 미보정 오차 / 전체 불확실성 한계 |
 | `uiSourceUncertaintyMs` / `uiReceiveUncertaintyMs` | 1 / 1ms | 원천 / 수신 측정 오차 예산 |
 | `uiDelayUncertaintyMs` / `uiLocalDriftPpm` | 0ms / 100ppm | 지연 잔차 / 로컬 드리프트 상한 가정 |
-| `uiExpectedLinkDelayMs` / `uiMaxLinkDelayMs` | 300 / 5000ms | 대표 / 최대 NCR 샘플링→RLE 수신 지연 |
+| `uiMaxLinkDelayMs` | 5000ms | NCR 샘플링부터 RLE 수신까지의 최대 지연 |
 | `uiMaxQueueAgeMs` | 5000ms | 수신 문맥 처리 기한 |
 | `uiMaxClockJumpMs` | 1000ms | 외부 REALTIME 점프 판정 |
 | `uiMaxReacquireOffsetMs` | 60000ms | 자동 획득/재획득 절대 오차 보호 |
@@ -143,17 +140,17 @@ typedef struct GpsTime {
 
 기본 어댑터는 `CLOCK_REALTIME`과 `CLOCK_MONOTONIC`을 읽고, 명시적으로 Step을 허용했을 때만 `clock_settime()`을 호출한다. 시간 변경을 활성화하는 운영 프로세스에는 CAP_SYS_TIME 등 필요한 권한이 있어야 한다. 정상 빌드·단위 시험에는 필요하지 않다. 실제 시스템의 시간 보정 주체는 하나로 정한다.
 
-Step은 LOCKED 획득과 일관된 오차 확인을 충족해야 한다. HOLDOVER/UNSYNCED, 중복·오류·긴 간격·오차 부호 변경은 확인 횟수를 끊는다. 적용 후 MONOTONIC 경과를 제외해 보정량을 계산한다. 성공 후 재측정이 실패하면 적용과 검증을 구분해서 반환하고 재획득한다.
+Step은 GPS_SYNC 획득과 일관된 오차 확인을 충족해야 한다. HOLDOVER/UNSYNCED, 중복·오류·긴 간격·오차 부호 변경은 확인 횟수를 끊는다. 적용 후 MONOTONIC 경과를 제외해 보정량을 계산한다. 성공 후 재측정이 실패하면 적용과 검증을 구분해서 반환하고 재획득한다.
 
-지원 모델은 `NCR_MODEL_DAILY_SECONDS_90KHZ` 하나다.
+NCR 모델은 송신 단말이 시각에서 NCR을 만드는 규칙이다. 이 구현은 자정 이후 초 수에 90kHz를 곱하는 규칙을 사용한다.
 
 ```text
 NCR32 = ((Hour * 3600 + Min * 60 + Sec) * 90000) mod 2^32
 Context24 = NCR32 & 0x00FFFFFF
 ```
 
-NCR 계산에는 밀리초를 반영하지 않고 자정에 초기화한다. 불확실성 U와 최대 링크 지연 D를 사용해 `[수신시각-U-D, 수신시각+U]`와 겹치는 송신 초 후보를 모두 검사한다. 후보가 유일할 때만 성공한다. 예상 지연으로 복수 후보 중 하나를 임의 선택하지 않는다.
+NCR은 자정에 초기화하며 초 단위로 계산한다. 불확실성 U와 최대 링크 지연 D를 사용해 `[수신시각-U-D, 수신시각+U]`와 겹치는 송신 초 후보를 검사한다. 후보가 유일할 때 성공한다.
 
 실제 단말의 NCR 생성 규칙이 다르면 모델을 추가해야 한다. 실제 RLE 파서·IV 바이트 배치·AES 복호화는 별도 연동 대상이다. 같은 초의 여러 패킷에서 키/전체 IV가 반복되는지도 최종 암호 연동 시 확인한다.
 
-코딩 규칙은 `docs/CODING_RULES.md`와 `docs/CODING_RULES_PROMPT.txt`에 보관했다. API 전체와 타입은 `include/ncr_sync.h`, 파일별 기능과 주요 함수는 `docs/FILE_GUIDE.md`에서 확인할 수 있다.
+코딩 규칙은 `docs/CODING_RULES.md`와 `docs/CODING_RULES_PROMPT.txt`에 보관했다. API와 타입은 `src/ncr_sync.h`에서 확인할 수 있다.

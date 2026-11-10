@@ -32,3 +32,7 @@ make tsan
 `make test`는 코어, 상태, 동시성, 실제 Linux 클록, C++ 연결, 기존 GPS 타입 어댑터 시험을 실행한다. `make example`은 호스트 연결 예제를 컴파일한다. 전체 시험은 root 권한을 요구하지 않으며 실제 시스템 시간을 변경하지 않는다. Step 시험에는 가상 클록을 사용한다.
 
 실제 GPS 시간척도·윤초·상태 값·지연, 위성 링크, 단말 NCR 모델, RLE 추출 위치, IV/AES 및 장기 운용은 별도 장비 통합 검증 항목이다.
+
+2026-11-10에 운영 소스를 `src/ncr_sync.c`와 `src/ncr_sync.h`로 통합했다. 상태값 1·2·3, UNSYNCED와 장기 미수신 중 Ubuntu 시각 복원, HOLDOVER 만료 후 전환, GPS 해제·미수신·재수신 이벤트를 기존 상태 시험에 추가했다.
+
+MinGW에서 Linux 대상 가드를 제외한 임시 사본으로 코어, 상태, 동시성, C++ 연결, 호스트 GPS 타입 시험을 실행했다. 345,600건의 NCR 복원과 40,000건의 동시 복원 시험을 포함해 통과했다. 단일 소스 Makefile은 dry-run으로 확인했다. Ubuntu에서의 실제 실행 검증은 `sh ./build_ubuntu.sh test`로 수행한다.

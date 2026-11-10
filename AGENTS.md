@@ -5,6 +5,7 @@ Keep calendar arithmetic and NCR reconstruction deterministic and testable with 
 System clock adjustment is opt-in through bAllowClockStep and is disabled by default.
 Preserve separate source HOLDOVER, message freshness and last LOCKED age limits.
 Capture packet receive contexts before queues/reassembly; retain per-packet time quality.
+Keep runtime integration limited to src/ncr_sync.c and src/ncr_sync.h.
 
 Target Ubuntu Linux with C11, pthread and 64-bit time_t. Keep the source list Linux-only.
 Run make test example or sh ./build_ubuntu.sh test on Ubuntu. Use make asan, make ubsan and make tsan where the toolchain supports them.

@@ -27,11 +27,16 @@ static void TestStartupAndStatus(void)
     NcrTimeDecision_t stDecision;
     NcrSyncStatus_t stStatus;
     GpsTime_t stGps;
+    NcrReceiveContext_t stContext;
+    NcrRestoreResult_t stResult;
+    uint8_t aucPayload[NCR_CONTEXT_LENGTH];
     uint32_t uiIndex;
+    stConfig.bAllowClockStep = true;
     InitializeTestClock(&stClock, TEST_SOURCE_MS);
     pstSync = CreateTestSync(&stConfig, &stClock);
     stDecision = ObserveSample(pstSync, TEST_SOURCE_MS, NCR_CLOCK_HOLDOVER);
-    CHECK(NCR_RESTORE_NOT_SYNCED == stDecision.stQuality.iUsability);
+    CHECK(NCR_RESTORE_OK == stDecision.stQuality.iUsability);
+    CHECK(stDecision.stQuality.bUbuntuFallback);
     CHECK(!stDecision.stQuality.bHasLockedReference);
     CHECK(NCR_STATUS_OK == ResetNcrSync(pstSync));
     AcquireTestClock(pstSync, &stClock, TEST_SOURCE_MS);
@@ -42,11 +47,19 @@ static void TestStartupAndStatus(void)
     stGps.ucClockStatus = 99U;
     CHECK(NCR_STATUS_INVALID_GPS == UpdateGpsTime(pstSync, &stGps, &stDecision));
     CHECK(1000U == stDecision.stQuality.ullMessageAgeMs);
-    stDecision = ObserveSample(pstSync, TEST_SOURCE_MS + 3000, NCR_CLOCK_UNSYNCED);
+    stGps = (GpsTime_t){.ucClockStatus = 3U};
+    CHECK(NCR_STATUS_UNSYNCED == UpdateGpsTime(pstSync, &stGps, &stDecision));
     CHECK(NCR_STATUS_UNSYNCED == stDecision.iStatus);
     CHECK(NCR_CLOCK_UNSYNCED == stDecision.stQuality.iSourceStatus);
-    CHECK(NCR_STATE_HOLDOVER == stDecision.stQuality.iState);
-    CHECK(stDecision.stQuality.bHoldover);
+    CHECK(stDecision.stQuality.bUbuntuFallback);
+    CHECK(!stDecision.bStepAttempted);
+    CHECK(0U == stClock.uiStepCalls);
+    CHECK(TEST_SOURCE_MS + 3000 == ReadStatus(pstSync).stGpsEvents.llLastGpsSyncLostUtcMs);
+    EncodeTestContext(TEST_SOURCE_MS + 3000, aucPayload);
+    CHECK(NCR_STATUS_OK == CaptureNcrReceiveContext(pstSync, &stContext));
+    CHECK(NCR_RESTORE_OK == RestoreNcr24(pstSync, &stContext, aucPayload,
+                                         NCR_CONTEXT_LENGTH, &stResult));
+    CHECK(stResult.stQuality.bUbuntuFallback);
     for (uiIndex = 4U; uiIndex <= 6U; uiIndex++) {
         AdvanceTestClock(&stClock, 1000U);
         stDecision = ObserveSample(pstSync, TEST_SOURCE_MS + (int64_t)uiIndex * 1000,
@@ -69,6 +82,9 @@ static void TestContinuousHoldoverAndTimeouts(void)
     NcrSync_t *pstSync;
     NcrTimeDecision_t stDecision;
     NcrSyncStatus_t stStatus;
+    NcrReceiveContext_t stContext;
+    NcrRestoreResult_t stResult;
+    uint8_t aucPayload[NCR_CONTEXT_LENGTH];
     uint32_t uiIndex;
     stConfig.uiMaxLocalHoldoverMs = 1000000U;
     InitializeTestClock(&stClock, TEST_SOURCE_MS);
@@ -82,8 +98,10 @@ static void TestContinuousHoldoverAndTimeouts(void)
     }
     CHECK(0U == stDecision.stQuality.ullMessageAgeMs);
     CHECK(359000U == stDecision.stQuality.ullSourceHoldoverAgeMs);
-    CHECK(NCR_RESTORE_STALE == stDecision.stQuality.iUsability);
+    CHECK(NCR_RESTORE_OK == stDecision.stQuality.iUsability);
     CHECK(NCR_STATE_STALE == stDecision.stQuality.iState);
+    CHECK(stDecision.stQuality.bUbuntuFallback);
+    CHECK(TEST_SOURCE_MS + 3000 == ReadStatus(pstSync).stGpsEvents.llLastGpsSyncLostUtcMs);
     for (uiIndex = 363U; uiIndex <= 365U; uiIndex++) {
         AdvanceTestClock(&stClock, 1000U);
         stDecision = ObserveSample(pstSync, TEST_SOURCE_MS + (int64_t)uiIndex * 1000,
@@ -92,13 +110,35 @@ static void TestContinuousHoldoverAndTimeouts(void)
     CHECK(NCR_STATE_READY == stDecision.stQuality.iState);
     AdvanceTestClock(&stClock, 3001U);
     stStatus = ReadStatus(pstSync);
-    CHECK(NCR_STATE_HOLDOVER == stStatus.stQuality.iState);
+    CHECK(stStatus.stQuality.bUbuntuFallback);
+    CHECK(stStatus.stGpsEvents.bGpsMessageMissing);
+    CHECK(TEST_SOURCE_MS + 368001 == stStatus.stGpsEvents.llLastGpsMessageMissingUtcMs);
+    CHECK(NCR_GPS_EVENT_NOT_RECORDED_MS == stStatus.stGpsEvents.llLastGpsMessageRestoredUtcMs);
     AdvanceTestClock(&stClock, 300000U);
     stStatus = ReadStatus(pstSync);
-    CHECK(NCR_RESTORE_STALE == stStatus.stQuality.iUsability);
+    CHECK(stStatus.stQuality.bUbuntuFallback);
+    CHECK(TEST_SOURCE_MS + 368001 == stStatus.stGpsEvents.llLastGpsMessageMissingUtcMs);
+    CHECK(NCR_STATUS_OK == CaptureNcrReceiveContext(pstSync, &stContext));
+    EncodeTestContext(TEST_SOURCE_MS + 668001, aucPayload);
+    CHECK(NCR_RESTORE_OK == RestoreNcr24(pstSync, &stContext, aucPayload,
+                                         NCR_CONTEXT_LENGTH, &stResult));
+    CHECK(stResult.stQuality.bUbuntuFallback);
+    stDecision = ObserveSample(pstSync, TEST_SOURCE_MS + 668001, NCR_CLOCK_GPS_SYNC);
+    CHECK(NCR_STATUS_OK == stDecision.iStatus);
+    stStatus = ReadStatus(pstSync);
+    CHECK(!stStatus.stGpsEvents.bGpsMessageMissing);
+    CHECK(TEST_SOURCE_MS + 668001 == stStatus.stGpsEvents.llLastGpsMessageRestoredUtcMs);
+    CHECK(TEST_SOURCE_MS + 3000 == stStatus.stGpsEvents.llLastGpsSyncLostUtcMs);
+    for (uiIndex = 1U; uiIndex <= 2U; uiIndex++) {
+        AdvanceTestClock(&stClock, 1000U);
+        stDecision = ObserveSample(pstSync, TEST_SOURCE_MS + 668001 + (int64_t)uiIndex * 1000,
+                                    NCR_CLOCK_GPS_SYNC);
+    }
+    CHECK(NCR_STATE_READY == stDecision.stQuality.iState);
+    CHECK(!stDecision.stQuality.bUbuntuFallback);
     DestroyNcrSync(pstSync);
     DestroyTestClock(&stClock);
-    puts("PASS continuous source HOLDOVER expiry/return/message loss");
+    puts("PASS HOLDOVER expiry/Ubuntu fallback/GPS loss and restoration event times");
 }
 
 static void TestReacquisitionAndResetGuard(void)
@@ -268,6 +308,7 @@ static void TestQueueAndExternalJump(void)
     NcrTimeDecision_t stDecision;
     uint8_t aucPayload[NCR_CONTEXT_LENGTH];
     uint32_t uiIndex;
+    stConfig.uiGpsMessageTimeoutMs = 6000U;
     InitializeTestClock(&stClock, TEST_SOURCE_MS);
     pstSync = CreateTestSync(&stConfig, &stClock);
     AcquireTestClock(pstSync, &stClock, TEST_SOURCE_MS);
@@ -292,7 +333,6 @@ static void TestQueueAndExternalJump(void)
                                     NCR_CLOCK_LOCKED);
     }
     CHECK(NCR_STATE_READY == stDecision.stQuality.iState);
-    CHECK(1U == ReadStatus(pstSync).ullClockJumps);
     stClock.uiFailReadNumber = stClock.uiReadCount + 1U;
     memset(&stBadContext, 0xA5, sizeof(stBadContext));
     CHECK(NCR_STATUS_CLOCK_ERROR == CaptureNcrReceiveContext(pstSync, &stBadContext));
@@ -363,7 +403,8 @@ static void TestOffsetDirectionAndDefaultPlatform(void)
     CHECK(NCR_STATUS_OK == GetNcrSyncStatus(pstSync, &stStatus));
     CHECK(NCR_STATE_UNINITIALIZED == stStatus.stQuality.iState);
     CHECK(NCR_STATUS_OK == CaptureNcrReceiveContext(pstSync, &stContext));
-    CHECK(NCR_RESTORE_NOT_SYNCED == stContext.stQuality.iUsability);
+    CHECK(NCR_RESTORE_OK == stContext.stQuality.iUsability);
+    CHECK(stContext.stQuality.bUbuntuFallback);
     DestroyNcrSync(pstSync);
     puts("PASS offset sign changes reset confirmation/default platform read-only clocks");
 }

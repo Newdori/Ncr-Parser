@@ -43,7 +43,8 @@ int main(void)
     CHECK(stContext.stReceiveStamp.llRealtimeMs <= llAfterRealMs + 1);
     CHECK(stContext.stReceiveStamp.ullMonotonicMs >= ullBeforeMonoMs);
     CHECK(stContext.stReceiveStamp.ullMonotonicMs <= ullAfterMonoMs);
-    CHECK(NCR_RESTORE_NOT_SYNCED == stContext.stQuality.iUsability);
+    CHECK(NCR_RESTORE_OK == stContext.stQuality.iUsability);
+    CHECK(stContext.stQuality.bUbuntuFallback);
     DestroyNcrSync(pstSync);
 
     /* Registration needs no CAP_SYS_TIME. No GPS samples or time changes. */
